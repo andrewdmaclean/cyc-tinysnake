@@ -8,7 +8,7 @@ const PORT = 3000;
 
 const RULES = `You will be given a strategy prompt for a game of Battlesnake. Output only one word in response to the strategy: up, down, left, or right.`;
 
-var STRATEGY = "always go left";
+var STRATEGY = "always go down";
 
 const app = new App();
 
@@ -18,7 +18,7 @@ app.get("/", (_req, res) =>
   res.json({
     apiversion: "1",
     author: "you",
-    color: "#000000",
+    color: "#FF0000",
     head: "cosmic-horror",
     tail: "cosmic-horror",
     version: "0.0.1-beta",

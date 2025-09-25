@@ -9,19 +9,17 @@ const PORT = 3000;
 
 const RULES = `You will be given a strategy prompt for a game of Battlesnake. Output only one word in response to the strategy: up, down, left, or right.`;
 
-var STRATEGY = "always go left";
-
-var COLOR = "#008000";
+var STRATEGY = "always go down";
 
 let BOARDSTATES = [];
 
 let WS = null;
 
-const APP = new App();
+const app = new App();
 
-APP.use(tinyws());
+app.use(tinyws());
 
-APP.all("/twilio", async (req, res) => {
+app.all("/twilio", async (req, res) => {
   res.type("text/xml").send(
     `<?xml version="1.0" encoding="UTF-8"?>
     <Response>
@@ -33,28 +31,28 @@ APP.all("/twilio", async (req, res) => {
 });
 
 
-APP.get("/", (_req, res) =>
+app.get("/", (_req, res) =>
   res.json({
     apiversion: "1",
     author: "you",
-    color: COLOR,
+    color: "#FF0000", 
     head: "cosmic-horror",
     tail: "cosmic-horror",
     version: "0.0.1-beta",
   })
 );
 
-APP.post("/start", (_req, res) => res.json({}));
+app.post("/start", (_req, res) => res.json({}));
 
-APP.use(json());
+app.use(json());
 
-APP.post("/move", async (req, res) => {
+app.post("/move", async (req, res) => {
   BOARDSTATES.push(req.body);
 
-  res.json({ move: await llmMove(req.body) }); // Added req.body
+  res.json({ move: await llmMove(req.body) }); 
 });
 
-APP.post("/end", async (_req, res) => {
+app.post("/end", async (_req, res) => {
   try {
     if (WS) {
       WS.send(
@@ -73,12 +71,11 @@ APP.post("/end", async (_req, res) => {
         JSON.stringify({
           type: "text",
           token: recap,
-          last: true, // single cohesive message
+          last: true, 
         })
       );
     }
 
-    // clear buffers
     BOARDSTATES = [];
 
     res.json({ ok: true });
@@ -89,7 +86,7 @@ APP.post("/end", async (_req, res) => {
 });
 
 
-APP.use("/ws", async (req, res) => {
+app.use("/ws", async (req, res) => {
   const ws = await req.ws();
   WS = ws;
 
@@ -102,31 +99,6 @@ APP.use("/ws", async (req, res) => {
         break;
       case "prompt":
         const voice = message.voicePrompt || "";
-
-        if (voice.startsWith("Color")) {
-          const spoken = voice.slice("Color".length); // whatever was said
-          const hex = await colorToHex(spoken);
-          if (hex) {
-            COLOR = hex;
-            console.log(`COLOR updated to: ${COLOR}`);
-
-            ws.send(
-              JSON.stringify({
-                type: "text",
-                token: COLOR,
-                last: true,
-              })
-            );
-          } else {
-            ws.send(
-              JSON.stringify({
-                type: "text",
-                token: "could not recognize color name, please try again",
-                last: true,
-              })
-            );
-          }
-        } else {
         STRATEGY = voice;
         console.log(`STRATEGY updated to: ${STRATEGY}`);
         ws.send(
@@ -136,7 +108,6 @@ APP.use("/ws", async (req, res) => {
             last: true,
           })
         );
-        }
         break;
       case "interrupt":
         console.log("Handling interruption.");
@@ -152,7 +123,7 @@ APP.use("/ws", async (req, res) => {
   });
 });
 
-APP.listen(PORT, () => console.log(`Battlesnake running on ${PORT}`));
+app.listen(PORT, () => console.log(`Battlesnake running on ${PORT}`));
 
 async function llmMove(boardState) {
   try {
@@ -180,7 +151,7 @@ async function llmMove(boardState) {
 }
 
 async function generateCommentary(gameStates) {
-  console.log("Generating commentary for board state:", gameStates);
+  console.log("Generating commentary");
   try {
     const response = await fetch("http://localhost:11434/api/chat", {
       method: "POST",
@@ -216,35 +187,6 @@ async function generateCommentary(gameStates) {
     return data.message.content;
   } catch (e) {
     console.error("Error in generation:", e);
-    return null;
-  }
-}
-
-async function colorToHex(spoken) {
-  try {
-    const response = await fetch("http://localhost:11434/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "qwen3:1.7b",
-        messages: [
-          {
-            role: "system",
-            content:
-              "Convert color names into hex codes. Only reply with the hex code starting with #.",
-          },
-          { role: "user", content: spoken },
-        ],
-        stream: false,
-        think: false,
-      }),
-    });
-    const data = await response.json();
-    const hex = (data.message.content || "").trim();
-    if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
-    return null;
-  } catch (e) {
-    console.error("Error in colorToHex:", e);
     return null;
   }
 }
