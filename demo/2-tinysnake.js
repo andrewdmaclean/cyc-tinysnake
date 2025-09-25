@@ -8,8 +8,8 @@ app.get("/", (_req, res) =>
   res.json({
     apiversion: "1",
     author: "you",
-    color: "#000000",
-    head: "default",
+    color: "#FFF000",
+    head: "chomp", //chomp
     tail: "default",
     version: "0.0.1-beta",
   })

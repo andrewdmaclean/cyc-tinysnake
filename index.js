@@ -1,6 +1,7 @@
 import { App } from "@tinyhttp/app";
 import { tinyws } from "tinyws";
 import * as dotenv from "@tinyhttp/dotenv";
+import { json } from "milliparsec";
 
 dotenv.config();
 
@@ -44,7 +45,10 @@ app.get("/", (_req, res) =>
 
 app.post("/start", (_req, res) => res.json({}));
 
+app.use(json());
+
 app.post("/move", async (req, res) => {
+  console.log("Received board state:", req.body);
   boardStates.push(req.body);
 
   res.json({ move: await llmMove(req.body) });

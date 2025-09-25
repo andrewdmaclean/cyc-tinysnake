@@ -2,7 +2,7 @@ import { App } from "@tinyhttp/app";
 import { tinyws } from "tinyws";
 import * as dotenv from "@tinyhttp/dotenv";
 
-dotenv.config();
+dotenv.config({ path: '../.env' })
 
 const PORT = 3000;
 
@@ -12,7 +12,7 @@ var STRATEGY = "always go left";
 
 const app = new App();
 
-app.use(tinyws());
+app.use(tinyws()); 
 
 app.get("/", (_req, res) =>
   res.json({

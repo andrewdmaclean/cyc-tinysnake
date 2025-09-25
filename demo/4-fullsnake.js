@@ -1,8 +1,9 @@
 import { App } from "@tinyhttp/app";
 import { tinyws } from "tinyws";
 import * as dotenv from "@tinyhttp/dotenv";
+import { json } from "milliparsec";
 
-dotenv.config();
+dotenv.config({ path: '../.env' })
 
 const PORT = 3000;
 
@@ -10,70 +11,15 @@ const RULES = `You will be given a strategy prompt for a game of Battlesnake. Ou
 
 var STRATEGY = "always go left";
 
-// var COLOR = "#008000";
+var COLOR = "#008000";
 
-// let BOARDSTATES = [];
+let BOARDSTATES = [];
 
-// let WS = null;
+let WS = null;
 
 const APP = new App();
 
 APP.use(tinyws());
-
-APP.get("/", (_req, res) =>
-  res.json({
-    apiversion: "1",
-    author: "you",
-    // color: COLOR,
-    head: "cosmic-horror",
-    tail: "cosmic-horror",
-    version: "0.0.1-beta",
-  })
-);
-
-APP.post("/start", (_req, res) => res.json({}));
-
-APP.post("/move", async (req, res) => {
-  // BOARDSTATES.push(req.body);
-
-  res.json({ move: await llmMove(req.body) }); // Added req.body
-});
-
-// APP.post("/end", async (_req, res) => {
-//   try {
-//     if (WS) {
-//       WS.send(
-//         JSON.stringify({
-//           type: "text",
-//           token: "Generating color commentary...",
-//           last: false,
-//         })
-//       );
-//     }
-
-//     const recap = await generateCommentary(BOARDSTATES);
-
-//     if (WS) {
-//       WS.send(
-//         JSON.stringify({
-//           type: "text",
-//           token: recap,
-//           last: true, // single cohesive message
-//         })
-//       );
-//     }
-
-//     // clear buffers
-//     BOARDSTATES = [];
-
-//     res.json({ ok: true });
-//   } catch (err) {
-//     console.error("Error generating commentary at end:", err);
-//     res.status(500).json({ error: "failed to generate commentary" });
-//   }
-// });
-
-
 
 APP.all("/twilio", async (req, res) => {
   res.type("text/xml").send(
@@ -87,9 +33,65 @@ APP.all("/twilio", async (req, res) => {
 });
 
 
+APP.get("/", (_req, res) =>
+  res.json({
+    apiversion: "1",
+    author: "you",
+    color: COLOR,
+    head: "cosmic-horror",
+    tail: "cosmic-horror",
+    version: "0.0.1-beta",
+  })
+);
+
+APP.post("/start", (_req, res) => res.json({}));
+
+APP.use(json());
+
+APP.post("/move", async (req, res) => {
+  BOARDSTATES.push(req.body);
+
+  res.json({ move: await llmMove(req.body) }); // Added req.body
+});
+
+APP.post("/end", async (_req, res) => {
+  try {
+    if (WS) {
+      WS.send(
+        JSON.stringify({
+          type: "text",
+          token: "Generating color commentary...",
+          last: false,
+        })
+      );
+    }
+
+    const recap = await generateCommentary(BOARDSTATES);
+
+    if (WS) {
+      WS.send(
+        JSON.stringify({
+          type: "text",
+          token: recap,
+          last: true, // single cohesive message
+        })
+      );
+    }
+
+    // clear buffers
+    BOARDSTATES = [];
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Error generating commentary at end:", err);
+    res.status(500).json({ error: "failed to generate commentary" });
+  }
+});
+
+
 APP.use("/ws", async (req, res) => {
   const ws = await req.ws();
-  // WS = ws;
+  WS = ws;
 
   ws.on("message", async (data) => {
     const message = JSON.parse(data);
@@ -101,30 +103,30 @@ APP.use("/ws", async (req, res) => {
       case "prompt":
         const voice = message.voicePrompt || "";
 
-        // if (voice.startsWith("Color")) {
-        //   const spoken = voice.slice("Color".length); // whatever was said
-        //   const hex = await colorToHex(spoken);
-        //   if (hex) {
-        //     COLOR = hex;
-        //     console.log(`COLOR updated to: ${COLOR}`);
+        if (voice.startsWith("Color")) {
+          const spoken = voice.slice("Color".length); // whatever was said
+          const hex = await colorToHex(spoken);
+          if (hex) {
+            COLOR = hex;
+            console.log(`COLOR updated to: ${COLOR}`);
 
-        //     ws.send(
-        //       JSON.stringify({
-        //         type: "text",
-        //         token: COLOR,
-        //         last: true,
-        //       })
-        //     );
-        //   } else {
-        //     ws.send(
-        //       JSON.stringify({
-        //         type: "text",
-        //         token: "could not recognize color name, please try again",
-        //         last: true,
-        //       })
-        //     );
-        //   }
-        // } else {
+            ws.send(
+              JSON.stringify({
+                type: "text",
+                token: COLOR,
+                last: true,
+              })
+            );
+          } else {
+            ws.send(
+              JSON.stringify({
+                type: "text",
+                token: "could not recognize color name, please try again",
+                last: true,
+              })
+            );
+          }
+        } else {
         STRATEGY = voice;
         console.log(`STRATEGY updated to: ${STRATEGY}`);
         ws.send(
@@ -134,7 +136,7 @@ APP.use("/ws", async (req, res) => {
             last: true,
           })
         );
-        // }
+        }
         break;
       case "interrupt":
         console.log("Handling interruption.");
@@ -177,72 +179,72 @@ async function llmMove(boardState) {
   }
 }
 
-// async function generateCommentary(gameStates) {
-//   console.log("Generating commentary for board state:", gameStates);
-//   try {
-//     const response = await fetch("http://localhost:11434/api/chat", {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({
-//         model: "qwen3:1.7b",
-//         messages: [
-//           {
-//             role: "system",
-//             content:
-//               "Role: high-energy sports commentator.\n" +
-//               "Task: produce ONE cohesive highlight-style recap of the entire snake match.\n" +
-//               "Style: vivid, broadcast tone, natural prose.\n" +
-//               "Length: 3–4 sentences (~60–110 words).\n" +
-//               "Constraints: base only on user-provided moves; do not display JSON; do not invent details; no bullet lists.",
-//           },
-//           {
-//             role: "user",
-//             content:
-//               "Write a single exciting recap of this snake game in 3–4 sentences. " +
-//               "Emphasize momentum swings, close calls, fruit pickups, and the final outcome. " +
-//               "Prose only (no code, no JSON, no lists), and stick strictly to what happened in the moves.\n\n" +
-//               "ALL_MOVE_JSON:\n" +
-//               JSON.stringify(gameStates),
-//           },
-//         ],
-//         stream: false,
-//         think: false,
-//       }),
-//     });
-//     const data = await response.json();
-//     console.log("Commentary response data:", data.message.content);
-//     return data.message.content;
-//   } catch (e) {
-//     console.error("Error in generation:", e);
-//     return null;
-//   }
-// }
+async function generateCommentary(gameStates) {
+  console.log("Generating commentary for board state:", gameStates);
+  try {
+    const response = await fetch("http://localhost:11434/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3:1.7b",
+        messages: [
+          {
+            role: "system",
+            content:
+              "Role: high-energy sports commentator.\n" +
+              "Task: produce ONE cohesive highlight-style recap of the entire snake match.\n" +
+              "Style: vivid, broadcast tone, natural prose.\n" +
+              "Length: 3 to 4 sentences (60 to 110 words).\n" +
+              "Constraints: base only on user-provided moves; do not display JSON; do not invent details; no bullet lists.",
+          },
+          {
+            role: "user",
+            content:
+              "Write a single exciting recap of this snake game in 3 to 4 sentences. " +
+              "Emphasize momentum swings, close calls, fruit pickups, and the final outcome. " +
+              "Prose only (no code, no JSON, no lists), and stick strictly to what happened in the moves.\n\n" +
+              "ALL_MOVE_JSON:\n" +
+              JSON.stringify(gameStates),
+          },
+        ],
+        stream: false,
+        think: false,
+      }),
+    });
+    const data = await response.json();
+    console.log("Commentary response data:", data.message.content);
+    return data.message.content;
+  } catch (e) {
+    console.error("Error in generation:", e);
+    return null;
+  }
+}
 
-// async function colorToHex(spoken) {
-//   try {
-//     const response = await fetch("http://localhost:11434/api/chat", {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json" },
-//       body: JSON.stringify({
-//         model: "qwen3:1.7b",
-//         messages: [
-//           {
-//             role: "system",
-//             content:
-//               "Convert color names into hex codes. Only reply with the hex code starting with #.",
-//           },
-//           { role: "user", content: spoken },
-//         ],
-//         stream: false,
-//         think: false,
-//       }),
-//     });
-//     const data = await response.json();
-//     const hex = (data.message.content || "").trim();
-//     if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
-//     return null;
-//   } catch (e) {
-//     console.error("Error in colorToHex:", e);
-//     return null;
-//   }
-// }
+async function colorToHex(spoken) {
+  try {
+    const response = await fetch("http://localhost:11434/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "qwen3:1.7b",
+        messages: [
+          {
+            role: "system",
+            content:
+              "Convert color names into hex codes. Only reply with the hex code starting with #.",
+          },
+          { role: "user", content: spoken },
+        ],
+        stream: false,
+        think: false,
+      }),
+    });
+    const data = await response.json();
+    const hex = (data.message.content || "").trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
+    return null;
+  } catch (e) {
+    console.error("Error in colorToHex:", e);
+    return null;
+  }
+}
